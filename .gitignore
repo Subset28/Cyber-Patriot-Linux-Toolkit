@@ -1,0 +1,11 @@
+# Run output from either toolkit. It can include generated passwords, so never commit it.
+cp-reports/
+new-passwords.txt
+run-*/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
