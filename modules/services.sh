@@ -2,7 +2,7 @@
 # Critical services are reported and never touched. Prohibited services are listed, and you pick
 # which to stop and disable. Services the README names as critical are never offered.
 
-PROHIBITED_SERVICES="telnet.socket telnetd.socket vsftpd proftpd pure-ftpd tftpd-hpa tftpd rsh.socket rlogin.socket rexec.socket snmpd nfs-server rpcbind"
+PROHIBITED_SERVICES="telnet.socket telnetd.socket vsftpd proftpd pure-ftpd tftpd-hpa tftpd rsh.socket rlogin.socket rexec.socket snmpd nfs-server rpcbind apache2 lighttpd nginx"
 
 mod_services() {
     say "Critical services from the README"
