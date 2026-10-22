@@ -20,7 +20,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/config.env"
 
 # Forensics first, so the questions are read before anything changes.
-MODULES="forensics users auth groups sudoers guest ssh sysctl firewall perms logging services packages updates malware userfiles media removepaths review audit"
+MODULES="forensics users auth groups sudoers guest hosts ssh sysctl firewall perms logging services packages updates malware userfiles media removepaths review audit"
 
 # One line per step, shown in the "Run this step" question.
 step_desc() {

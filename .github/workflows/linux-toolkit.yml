@@ -129,6 +129,14 @@ jobs:
           sudo test -f "$(newest)/malware-check.txt"
           sudo find /root/cp-reports -name 'suid.txt' | grep -q .
 
+          echo "== hosts (the fixture redirect line)"
+          echo "0.0.0.0 fixture-bad.example" | sudo tee -a /etc/hosts >/dev/null
+          sudo bash cp_harden.sh --only hosts --no-pause < /dev/null > hosts-dry.txt 2>&1
+          n=$(awk '/^      line /{i++} /fixture-bad/{print i; exit}' hosts-dry.txt); test -n "$n"
+          echo "$n" | sudo bash cp_harden.sh --apply --only hosts --no-pause > hosts.txt 2>&1
+          cat hosts.txt
+          ! grep -q fixture-bad /etc/hosts
+          grep -q localhost /etc/hosts
           echo "== forensics (report only)"
           sudo bash cp_harden.sh --apply --only forensics --no-pause < /dev/null > forensics.txt 2>&1
           grep -q "Forensics questions" forensics.txt

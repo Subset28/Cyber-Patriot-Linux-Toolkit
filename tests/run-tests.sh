@@ -156,6 +156,21 @@ for f in modules/*.sh; do
     fi
 done
 
+echo "== hosts file"
+. ./modules/hosts.sh
+check "hosts: localhost line is standard" hosts_is_default "127.0.0.1 localhost"
+check "hosts: comment is standard" hosts_is_default "# comment"
+check_not "hosts: redirect is not standard" hosts_is_default "0.0.0.0 bank.example.com"
+printf '127.0.0.1 localhost
+127.0.1.1 host
+# c
+10.0.0.5 updates.example.com
+' > "$TMP/hosts"
+out=$(HOSTS_FILE="$TMP/hosts" APPLY=0 mod_hosts 2>&1)
+check "hosts: dry run lists the redirect" bash -c '[[ "$1" == *"updates.example.com"* ]]' _ "$out"
+check_not "hosts: dry run keeps standard lines out of the list" bash -c '[[ "$1" == *"localhost"* ]]' _ "$out"
+check "hosts: dry run changes nothing" grep -q 'updates.example.com' "$TMP/hosts"
+
 echo "== CLI"
 check "cp_harden --list prints modules" bash -c 'bash ./cp_harden.sh --list | grep -qx users'
 check "cp_harden rejects unknown argument" bash -c '! bash ./cp_harden.sh --bogus >/dev/null 2>&1'
