@@ -16,7 +16,8 @@ jobs:
         run: bash tests/run-tests.sh
 
   dry-run-and-apply:
-    # Runs on a throwaway Ubuntu VM: fake accounts, a fixture README, then a real apply of three modules.
+    # Runs on a throwaway Ubuntu VM: fake accounts, a fixture README, a dry run of every module,
+    # then a real apply of the account, SSH, firewall, sysctl, password, and software modules.
     runs-on: ubuntu-latest
     needs: lint-and-test
     steps:
@@ -28,20 +29,41 @@ jobs:
           sudo apt-get install -y nmap
           mkdir -p "$HOME/Desktop"
           cp tests/fixtures/README.txt "$HOME/Desktop/README.txt"
+      - name: README as the toolkit reads it
+        run: |
+          sudo bash cp_harden.sh --show < /dev/null | tee show.txt
+          grep -q "benjamin" show.txt
+          grep -qi "ssh" show.txt
+          grep -q "Wireshark" show.txt || true
       - name: Dry run every module (nothing changes)
         run: |
           sudo bash cp_harden.sh --no-pause < /dev/null > dryrun.txt 2>&1 || true
-          cat dryrun.txt
+          tail -n 40 dryrun.txt
           ! grep -q "\[FAILED\]" dryrun.txt
-      - name: Apply users, auth and packages
+      - name: Apply account, SSH, firewall, sysctl, password and software modules
         run: |
-          sudo bash cp_harden.sh --apply --only users,auth,packages --no-pause < /dev/null > apply.txt 2>&1 || true
+          sudo bash cp_harden.sh --apply --only users,auth,ssh,sysctl,firewall,packages --no-pause < /dev/null > apply.txt 2>&1 || true
           cat apply.txt
+          ! grep -q "\[FAILED\]" apply.txt
       - name: Check the results on the machine
         run: |
-          # The unauthorized account must be gone, the authorized admin must be in sudo, and aging must be set on it.
+          # Unauthorized account gone; authorized admin in sudo with aging set.
           ! id attacker >/dev/null 2>&1
           id -nG benjamin | grep -qw sudo
           sudo chage -l benjamin | grep -q 'Maximum number of days between password change.*: 90'
-          grep -q "nmap" apply.txt
-          ! grep -q "\[FAILED\]" apply.txt
+          # SSH: root login off, and sshd still runs (it was never stopped).
+          sudo grep -q '^PermitRootLogin no' /etc/ssh/sshd_config
+          systemctl is-active --quiet ssh || systemctl is-active --quiet sshd
+          # Firewall: ufw active with the SSH rule in place.
+          sudo ufw status | grep -q 'Status: active'
+          sudo ufw status | grep -q '22/tcp'
+          # Kernel network settings written and loaded.
+          test -f /etc/sysctl.d/99-cp-hardening.conf
+          sudo sysctl -n net.ipv4.conf.all.accept_redirects | grep -qx 0
+          # Password policy.
+          grep -qE '^PASS_MAX_DAYS[[:space:]]+90' /etc/login.defs
+          grep -q 'minlen = 12' /etc/security/pwquality.conf
+          grep -q 'deny = 5' /etc/security/faillock.conf
+          # Prohibited software: nmap is listed by name, and nothing was removed without a pick.
+          grep -q 'nmap' apply.txt
+          dpkg -s nmap >/dev/null 2>&1
