@@ -24,24 +24,6 @@ inlist() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
 ask() { local a; read -r -p "$1" a; echo "$a"; }
 
-# ask_yn QUESTION -> returns 0 for y, 1 for n. Enter alone does not answer.
-ask_yn() {
-    local a
-    while :; do
-        read -r -p "$1 (y/n): " a
-        case "$a" in
-            y|Y|yes) return 0 ;;
-            n|N|no)  return 1 ;;
-            *) echo "    Type y or n. Enter alone does not continue." ;;
-        esac
-    done
-}
-
-# Prints the newest run folder under REPORT_DIR, if there is one.
-latest_run() {
-    ls -1dt "$REPORT_DIR"/run-* 2>/dev/null | head -n 1
-}
-
 # pick_numbers QUESTION ITEM...  -> prints the chosen items, one per line.
 # Enter alone does not answer: type numbers (commas or spaces), or 'none'.
 pick_numbers() {

@@ -1,6 +1,5 @@
 # shellcheck shell=bash
-# Prohibited software. Lists what is installed, and you pick what to remove.
-# Protected packages are never offered.
+# Remove prohibited software. Protected packages are never touched.
 
 protected_pkg() {
     inlist "$PROTECTED_PKGS" "$1" && return 0
@@ -9,33 +8,16 @@ protected_pkg() {
 }
 
 mod_packages() {
-    say "Prohibited software (you pick what to remove)"
-    local -a found=() removable=() picked=()
-    local p pkg
-    mapfile -t found < <(for p in $BAD_PKGS; do dpkg-query -W -f='${Package}\n' "$p" "$p-*" 2>/dev/null; done | awk '!seen[$0]++')
-    for pkg in "${found[@]}"; do
-        if protected_pkg "$pkg"; then
-            echo "    protected, not offered: $pkg"
-            log INFO "protected package skipped: $pkg"
-            continue
-        fi
-        removable+=("$pkg")
+    say "Prohibited software"
+    for p in $BAD_PKGS; do
+        for pkg in $(dpkg-query -W -f='${Package}\n' "$p" "$p-*" 2>/dev/null); do
+            if protected_pkg "$pkg"; then
+                echo "    skipping protected package: $pkg"
+                log INFO "protected package skipped: $pkg"
+                continue
+            fi
+            echo "    installed: $pkg"
+            act "purge $pkg" apt-get purge -y "$pkg" --fallback dpkg --purge "$pkg"
+        done
     done
-
-    if [ "${#removable[@]}" -eq 0 ]; then
-        echo "    no prohibited software installed"
-        return 0
-    fi
-    echo "    ${#removable[@]} prohibited package(s) installed:"
-    if [ "$APPLY" -ne 1 ]; then
-        printf '    %s\n' "${removable[@]}"
-        echo "    [dry-run] in apply mode you pick which packages to remove"
-        return 0
-    fi
-    mapfile -t picked < <(pick_numbers "Remove which of these? (numbers separated by commas, or type none)" "${removable[@]}")
-    for pkg in "${picked[@]}"; do
-        [ -n "$pkg" ] || continue
-        act "purge $pkg" apt-get purge -y "$pkg" --fallback dpkg --purge "$pkg"
-    done
-    echo "    packages you did not pick are kept"
 }
