@@ -171,7 +171,8 @@ if [ "$SHOW" -eq 1 ]; then
 fi
 
 : "${NEW_ADMINS:=}"
-if ! grep -q '^[^#]*NEW_ADMINS=' "$DIR/config.env"; then
+# Asked only in a terminal: a piped or closed stdin (CI, scripts) must not be read as an answer.
+if ! grep -q '^[^#]*NEW_ADMINS=' "$DIR/config.env" && [ -t 0 ]; then
     # Names must start with a letter, so a stray number is not taken as an account name.
     while :; do
         NEW_ADMINS=$(ask "New admin accounts to create, space-separated (press Enter for none): ")
