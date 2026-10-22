@@ -47,7 +47,9 @@ jobs:
           ! grep -q "\[FAILED\]" apply.txt
       - name: "Sudo - require a password for a picked NOPASSWD rule"
         run: |
-          # Test rule for a fake admin. Pick 1 is this rule (cp-ci-test sorts before runner in /etc/sudoers.d).
+          # Throwaway VM only. The image's cloud-init rule sorts before the test rule, so remove it first;
+          # then the test rule is pick 1 (the runner's rule sorts after it and is not picked).
+          sudo rm -f /etc/sudoers.d/90-cloud-init-users
           echo 'benjamin ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/cp-ci-test >/dev/null
           sudo chmod 0440 /etc/sudoers.d/cp-ci-test
           echo 1 | sudo bash cp_harden.sh --apply --only sudoers --no-pause > sudoers.txt 2>&1 || true
