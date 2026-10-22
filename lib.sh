@@ -104,6 +104,8 @@ act() {
         return 0
     fi
     echo "    [FAILED] $desc"
+    echo "      last lines of $RUN_DIR/commands.log:"
+    tail -n 6 "$RUN_DIR/commands.log" 2>/dev/null | sed "s/^/        /"
     log FAILED "$desc"
     record FAILED "$desc"
     return 1

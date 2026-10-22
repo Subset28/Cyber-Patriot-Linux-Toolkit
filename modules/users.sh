@@ -84,6 +84,10 @@ mod_users() {
             act "force password change at next login for $u" chage -d 0 "$u"
             if inlist "$admins_l" "${u,,}"; then
                 act "add $u to $ADMIN_GROUP" usermod -aG "$ADMIN_GROUP" "$u" --fallback adduser "$u" "$ADMIN_GROUP"
+            elif ask_yn "Make $u an administrator (sudo)? (y/n)"; then
+                act "add $u to $ADMIN_GROUP" usermod -aG "$ADMIN_GROUP" "$u" --fallback adduser "$u" "$ADMIN_GROUP"
+            else
+                echo "    $u stays a standard user (the README did not list it as an admin)"
             fi
             done_users+=" $u "
         done

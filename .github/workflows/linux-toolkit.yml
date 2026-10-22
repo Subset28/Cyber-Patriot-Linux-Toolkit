@@ -137,6 +137,12 @@ jobs:
           cat hosts.txt
           ! grep -q fixture-bad /etc/hosts
           grep -q localhost /etc/hosts
+          echo "== prohibited launcher (dry run lists it; nothing removed without a pick)"
+          echo "[Desktop Entry]" > "$HOME/Desktop/ophcrack.desktop"
+          echo "Name=ophcrack" >> "$HOME/Desktop/ophcrack.desktop"
+          sudo bash cp_harden.sh --only packages --no-pause < /dev/null > pkgfiles-dry.txt 2>&1
+          grep -qi "ophcrack" pkgfiles-dry.txt
+          test -e "$HOME/Desktop/ophcrack.desktop"
           echo "== forensics (report only)"
           sudo bash cp_harden.sh --apply --only forensics --no-pause < /dev/null > forensics.txt 2>&1
           grep -q "Forensics questions" forensics.txt

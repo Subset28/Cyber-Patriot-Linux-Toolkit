@@ -4,6 +4,9 @@
 
 PROHIBITED_SERVICES="telnet.socket telnetd.socket vsftpd proftpd pure-ftpd tftpd-hpa tftpd rsh.socket rlogin.socket rexec.socket snmpd nfs-server rpcbind apache2 lighttpd nginx"
 
+# Non-essential services that do not affect the VM: stopped and disabled automatically, unless the README names them.
+SAFE_STOP_SERVICES="avahi-daemon cups cups-browsed bluetooth ModemManager whoopsie kerneloops speech-dispatcher colord geoclue apport switcheroo-control rtkit-daemon"
+
 mod_services() {
     say "Critical services from the README"
     for s in $SERVICES; do
@@ -45,4 +48,22 @@ mod_services() {
             --fallback sh -c 'systemctl stop "$1"; systemctl disable "$1"' _ "$svc"
     done
     echo "    services you did not pick are left running"
+    stop_safe_services
+}
+
+# Stops and disables the non-essential services in SAFE_STOP_SERVICES that are running or enabled.
+stop_safe_services() {
+    say "Non-essential services (stopped and disabled automatically; README-named ones are kept)"
+    local svc
+    for svc in $SAFE_STOP_SERVICES; do
+        if inlist " $SERVICES " "$svc" || inlist " $SERVICES " "${svc%.*}"; then
+            echo "    kept (named in the README): $svc"
+            continue
+        fi
+        systemctl cat "$svc" >/dev/null 2>&1 || continue
+        if systemctl is-active --quiet "$svc" || systemctl is-enabled --quiet "$svc" 2>/dev/null; then
+            act "stop and disable $svc" sh -c 'systemctl disable --now "$1"' _ "$svc" \
+                --fallback sh -c 'systemctl stop "$1"; systemctl disable "$1"' _ "$svc"
+        fi
+    done
 }
