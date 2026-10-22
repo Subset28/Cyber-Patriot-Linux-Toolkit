@@ -45,6 +45,19 @@ jobs:
           sudo bash cp_harden.sh --apply --only users,auth,ssh,sysctl,firewall,packages --no-pause < /dev/null > apply.txt 2>&1 || true
           cat apply.txt
           ! grep -q "\[FAILED\]" apply.txt
+      - name: "Sudo - require a password for a picked NOPASSWD rule"
+        run: |
+          # Test rule for a fake admin. Pick 1 is this rule (cp-ci-test sorts before runner in /etc/sudoers.d).
+          echo 'benjamin ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/cp-ci-test >/dev/null
+          sudo chmod 0440 /etc/sudoers.d/cp-ci-test
+          printf '1
+' | sudo bash cp_harden.sh --apply --only sudoers --no-pause > sudoers.txt 2>&1 || true
+          cat sudoers.txt
+          ! sudo grep -q NOPASSWD /etc/sudoers.d/cp-ci-test
+          sudo grep -q 'ALL=(ALL) ALL' /etc/sudoers.d/cp-ci-test
+          sudo visudo -c
+          # The runner's own rule is not picked, so it keeps its NOPASSWD.
+          sudo grep -q NOPASSWD /etc/sudoers.d/runner
       - name: Check the results on the machine
         run: |
           # Unauthorized account gone; authorized admin in sudo with aging set.
