@@ -62,6 +62,72 @@ jobs:
           sudo visudo -c
           # The runner's own rule is not picked, so it keeps its NOPASSWD.
           sudo grep -q NOPASSWD /etc/sudoers.d/runner
+      - name: "Module checks - each module on its own with fixtures"
+        run: |
+          set -u
+          # Fixtures: one media file in Music, one folder in Downloads, one suspicious script in Downloads.
+          mkdir -p "$HOME/Music" "$HOME/Downloads/cp-junk-folder"
+          echo 'x' > "$HOME/Music/fixture-track.mp3"
+          echo 'x' > "$HOME/Downloads/cp-junk-folder/file.txt"
+          echo 'echo hi' > "$HOME/Downloads/evil.sh"
+          newest() { sudo sh -c 'ls -td /root/cp-reports/run-*/ | head -n 1'; }
+
+          echo "== perms"
+          sudo bash cp_harden.sh --apply --only perms --no-pause < /dev/null > perms.txt 2>&1
+          test "$(sudo stat -c '%U:%G %a' /etc/shadow)" = "root:shadow 640"
+          test "$(sudo stat -c '%U:%G %a' /etc/passwd)" = "root:root 644"
+
+          echo "== logging"
+          sudo bash cp_harden.sh --apply --only logging --no-pause < /dev/null > logging.txt 2>&1 || true
+          test -f /etc/audit/rules.d/cp-toolkit.rules
+          systemctl is-active --quiet auditd
+
+          echo "== guest"
+          sudo bash cp_harden.sh --apply --only guest --no-pause < /dev/null > guest.txt 2>&1
+          grep -q "display manager is" guest.txt
+
+          echo "== services (critical SSH must stay running; no pick given)"
+          sudo bash cp_harden.sh --apply --only services --no-pause < /dev/null > services.txt 2>&1
+          systemctl is-active --quiet ssh || systemctl is-active --quiet sshd
+
+          # Pick numbers come from each module's own dry-run list, so other files on the image cannot shift them.
+          plain_index() { grep '^    /' "$1" | grep -n -- "$2" | head -n 1 | cut -d: -f1; }
+          numbered_index() { grep -- "$2" "$1" | head -n 1 | sed -E 's/^ *([0-9]+)\).*/\1/'; }
+
+          echo "== media (the Music file)"
+          sudo bash cp_harden.sh --only media --no-pause < /dev/null > media-dry.txt 2>&1
+          n=$(plain_index media-dry.txt fixture-track.mp3); test -n "$n"
+          echo "$n" | sudo bash cp_harden.sh --apply --only media --no-pause > media.txt 2>&1
+          cat media.txt
+          test ! -e "$HOME/Music/fixture-track.mp3"
+
+          echo "== removepaths (the Downloads folder)"
+          sudo bash cp_harden.sh --only removepaths --no-pause < /dev/null > rp-dry.txt 2>&1
+          n=$(numbered_index rp-dry.txt cp-junk-folder); test -n "$n"
+          echo "$n" | sudo bash cp_harden.sh --apply --only removepaths --no-pause > removepaths.txt 2>&1
+          cat removepaths.txt
+          test ! -e "$HOME/Downloads/cp-junk-folder"
+
+          echo "== userfiles (evil.sh)"
+          sudo bash cp_harden.sh --only userfiles --no-pause < /dev/null > uf-dry.txt 2>&1
+          n=$(plain_index uf-dry.txt evil.sh); test -n "$n"
+          echo "$n" | sudo bash cp_harden.sh --apply --only userfiles --no-pause > userfiles.txt 2>&1
+          cat userfiles.txt
+          test ! -e "$HOME/Downloads/evil.sh"
+
+          echo "== review (report and pick lists; no picks given, nothing removed)"
+          sudo bash cp_harden.sh --apply --only review --no-pause < /dev/null > review.txt 2>&1
+          grep -q "Top of /" review.txt
+          ! grep -q "\[FAILED\]" review.txt
+
+          echo "== audit and malware (report only, files saved to the run folder)"
+          sudo bash cp_harden.sh --apply --only audit,malware --no-pause < /dev/null > audit.txt 2>&1
+          sudo test -f "$(newest)/malware-check.txt"
+          sudo find /root/cp-reports -name 'suid.txt' | grep -q .
+
+          echo "== forensics (report only)"
+          sudo bash cp_harden.sh --apply --only forensics --no-pause < /dev/null > forensics.txt 2>&1
+          grep -q "Forensics questions" forensics.txt
       - name: Check the results on the machine
         run: |
           # Unauthorized account gone; authorized admin in sudo with aging set.
