@@ -67,3 +67,12 @@ jobs:
           # Prohibited software: nmap is listed by name, and nothing was removed without a pick.
           grep -q 'nmap' apply.txt
           dpkg -s nmap >/dev/null 2>&1
+      - name: Debug dump (always runs)
+        if: always()
+        run: |
+          echo "--- sshd -t on the restored config:"; sudo sshd -t 2>&1; echo "rc=$?"
+          echo "--- sshd_config (restored):"; sudo cat /etc/ssh/sshd_config
+          echo "--- sshd_config.d:"; sudo ls -la /etc/ssh/sshd_config.d/ 2>&1; sudo cat /etc/ssh/sshd_config.d/*.conf 2>/dev/null
+          echo "--- run folder command log:"; sudo sh -c 'cat /root/cp-reports/run-*/commands.log' 2>/dev/null | tail -n 60
+          echo "--- run folder run.log:"; sudo sh -c 'cat /root/cp-reports/run-*/run.log' 2>/dev/null | tail -n 60
+          echo "--- /run/sshd:"; ls -ld /run/sshd 2>&1
