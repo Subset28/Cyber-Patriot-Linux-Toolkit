@@ -80,9 +80,9 @@ jobs:
           echo "== logging"
           sudo bash cp_harden.sh --apply --only logging --no-pause < /dev/null > logging.txt 2>&1 || true
           cat logging.txt
-          ls -l /etc/audit/rules.d/ 2>&1
-          systemctl status auditd --no-pager 2>&1 | head -n 25
-          test -f /etc/audit/rules.d/cp-toolkit.rules
+          sudo ls -l /etc/audit/rules.d/ 2>&1 || true
+          systemctl status auditd --no-pager 2>&1 | head -n 25 || true
+          sudo test -f /etc/audit/rules.d/cp-toolkit.rules
           systemctl is-active --quiet auditd
 
           echo "== guest"
