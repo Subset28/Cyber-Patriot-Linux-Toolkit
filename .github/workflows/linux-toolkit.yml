@@ -50,8 +50,7 @@ jobs:
           # Test rule for a fake admin. Pick 1 is this rule (cp-ci-test sorts before runner in /etc/sudoers.d).
           echo 'benjamin ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/cp-ci-test >/dev/null
           sudo chmod 0440 /etc/sudoers.d/cp-ci-test
-          printf '1
-' | sudo bash cp_harden.sh --apply --only sudoers --no-pause > sudoers.txt 2>&1 || true
+          echo 1 | sudo bash cp_harden.sh --apply --only sudoers --no-pause > sudoers.txt 2>&1 || true
           cat sudoers.txt
           ! sudo grep -q NOPASSWD /etc/sudoers.d/cp-ci-test
           sudo grep -q 'ALL=(ALL) ALL' /etc/sudoers.d/cp-ci-test
