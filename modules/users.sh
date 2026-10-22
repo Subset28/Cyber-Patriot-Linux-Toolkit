@@ -8,7 +8,10 @@ mod_users() {
     local done_users=" "
     local admins_l=" ${ADMINS,,} ${NEW_ADMINS,,} "
     local users_l=" ${USERS,,} ${NewUsers[*],,} "
-    getent passwd | while IFS=: read -r name _ uid _ _ _ shell; do
+    local -a unauth=() demote=() picked=()
+    local name uid shell lname label n
+    # Scan first, change nothing here. Removals are offered as pick lists (apply mode), never done silently.
+    while IFS=: read -r name _ uid _ _ _ shell; do
         [ "$name" = root ] && continue
         [ "$uid" -ge 1000 ] || [ "$uid" -eq 0 ] || continue
         case "$shell" in */nologin|*/false) continue ;; esac
@@ -16,25 +19,52 @@ mod_users() {
         [ "$uid" -eq 0 ] && echo "    extra UID 0 account: $name"
         lname=${name,,}
         if inlist "$admins_l" "$lname"; then
-            id -nG "$name" | grep -qw "$ADMIN_GROUP" || \
-                act "add $name to $ADMIN_GROUP" usermod -aG "$ADMIN_GROUP" "$name" --fallback adduser "$name" "$ADMIN_GROUP"
+            id -nG "$name" | grep -qw "$ADMIN_GROUP" ||                 act "add $name to $ADMIN_GROUP" usermod -aG "$ADMIN_GROUP" "$name" --fallback adduser "$name" "$ADMIN_GROUP"
         elif inlist "$users_l" "$lname"; then
-            id -nG "$name" | grep -qw "$ADMIN_GROUP" && \
-                act "remove admin rights from $name" gpasswd -d "$name" "$ADMIN_GROUP" --fallback deluser "$name" "$ADMIN_GROUP"
+            id -nG "$name" | grep -qw "$ADMIN_GROUP" && demote+=("$name (in $ADMIN_GROUP, authorized as a standard user)")
         else
-            echo "    UNAUTHORIZED: $name"
             if [ -z "${README:-}" ] || [ ! -f "$README" ] || grep -qiw -- "$name" "$README"; then
                 echo "    SKIPPED: $name is named in the README, or the README was not read. Not deleting. Check ADMINS/USERS in config.env."
                 log WARN "refused to delete $name: named in README or README unavailable"
                 continue
             fi
-            if [ "$DeleteUnauthorizedHomes" -eq 1 ]; then
-                act "delete unauthorized user $name and its home folder" userdel -r "$name" --fallback deluser --remove-home "$name"
-            else
-                act "delete unauthorized user $name (home folder kept)" userdel "$name" --fallback deluser "$name"
-            fi
+            unauth+=("$name (UID $uid)")
         fi
-    done
+    done < <(getent passwd)
+
+    if [ "${#demote[@]}" -gt 0 ]; then
+        say "Admin rights to remove (you pick which)"
+        if [ "$APPLY" -ne 1 ]; then
+            printf '    %s\n' "${demote[@]}"
+            echo "    [dry-run] in apply mode you pick which lose admin rights"
+        else
+            mapfile -t picked < <(pick_numbers "Remove admin rights from which of these? (numbers separated by commas, or type none)" "${demote[@]}")
+            for label in "${picked[@]}"; do
+                [ -n "$label" ] || continue
+                n=${label%% *}
+                act "remove admin rights from $n" gpasswd -d "$n" "$ADMIN_GROUP" --fallback deluser "$n" "$ADMIN_GROUP"
+            done
+        fi
+    fi
+
+    if [ "${#unauth[@]}" -gt 0 ]; then
+        say "Unauthorized accounts (you pick which to delete)"
+        if [ "$APPLY" -ne 1 ]; then
+            printf '    UNAUTHORIZED: %s\n' "${unauth[@]}"
+            echo "    [dry-run] in apply mode you pick which accounts to delete"
+        else
+            mapfile -t picked < <(pick_numbers "Delete which of these accounts? (numbers separated by commas, or type none)" "${unauth[@]}")
+            for label in "${picked[@]}"; do
+                [ -n "$label" ] || continue
+                n=${label%% *}
+                if [ "$DeleteUnauthorizedHomes" -eq 1 ]; then
+                    act "delete unauthorized user $n and its home folder" userdel -r "$n" --fallback deluser --remove-home "$n"
+                else
+                    act "delete unauthorized user $n (home folder kept)" userdel "$n" --fallback deluser "$n"
+                fi
+            done
+        fi
+    fi
 
     say "Missing authorized accounts (you pick which to create)"
     local -a missing=() picked=()

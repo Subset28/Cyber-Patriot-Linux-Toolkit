@@ -145,6 +145,17 @@ check "packages: dry run changes nothing" bash -c '[[ "$1" == *"Dry run"* || "$1
 check "packages: README name not installed is reported (Ophcrack)" bash -c '[[ "$1" == *"not installed"*Ophcrack* ]]' _ "$out"
 unset -f dpkg-query
 
+echo "== no silent removals (every removal is behind a pick list)"
+for f in modules/*.sh; do
+    # A destructive command outside the sudoers temp-file cleanup needs a pick list in the same module.
+    has_destructive() { grep -E 'userdel|gpasswd -d|apt-get purge|rm -rf? |rm -f ' "$1" | grep -v '\$tmp' | grep -q .; }
+    if has_destructive "$f"; then
+        check "pick list present where removals happen: $f" grep -q 'pick_numbers' "$f"
+    else
+        ok "no removals in: $f"
+    fi
+done
+
 echo "== CLI"
 check "cp_harden --list prints modules" bash -c 'bash ./cp_harden.sh --list | grep -qx users'
 check "cp_harden rejects unknown argument" bash -c '! bash ./cp_harden.sh --bogus >/dev/null 2>&1'

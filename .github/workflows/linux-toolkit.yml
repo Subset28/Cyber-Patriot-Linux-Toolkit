@@ -42,7 +42,10 @@ jobs:
           ! grep -q "\[FAILED\]" dryrun.txt
       - name: Apply account, SSH, firewall, sysctl, password and software modules
         run: |
-          sudo bash cp_harden.sh --apply --only users,auth,ssh,sysctl,firewall,packages --no-pause < /dev/null > apply.txt 2>&1 || true
+          # Throwaway VM: remove the image's extra account so the only unauthorized one is attacker.
+          sudo userdel -r packer 2>/dev/null || true
+          # Pick 1 in the users step is the unauthorized account list (attacker). Later prompts get no input.
+          echo 1 | sudo bash cp_harden.sh --apply --only users,auth,ssh,sysctl,firewall,packages --no-pause > apply.txt 2>&1 || true
           cat apply.txt
           ! grep -q "\[FAILED\]" apply.txt
       - name: "Sudo - require a password for a picked NOPASSWD rule"
