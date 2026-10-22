@@ -22,7 +22,7 @@ echo "== static checks"
 for f in cp_harden.sh lib.sh cp_menu.sh modules/*.sh; do
     check "syntax: $f" bash -n "$f"
 done
-has_cr() { [ "$(tr -d '' < "$1" | wc -c)" -ne "$(wc -c < "$1")" ]; }
+has_cr() { [ "$(tr -d '\r' < "$1" | wc -c)" -ne "$(wc -c < "$1")" ]; }
 for f in cp_harden.sh lib.sh cp_menu.sh modules/*.sh config.env tests/run-tests.sh; do
     check_not "LF line endings: $f" has_cr "$f"
 done

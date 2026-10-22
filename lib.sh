@@ -145,7 +145,7 @@ setline() { # file key full_line
 gen_password() {
     local p sym='[!#%^&*_=+-]'
     while :; do
-        p=$(tr -dc 'A-Za-z0-9!#%^&*_=+-' < /dev/urandom | head -c 16)
+        p=$(tr -dc 'A-Za-z0-9!#%^&*_=+-' < /dev/urandom 2>/dev/null | head -c 16)
         [[ $p =~ [A-Z] && $p =~ [a-z] && $p =~ [0-9] && $p =~ $sym ]] && break
     done
     printf '%s' "$p"
