@@ -15,6 +15,8 @@ mod_ssh() {
     for f in /etc/ssh/sshd_config.d/*.conf; do
         [ -f "$f" ] && grep -qi '^[[:space:]]*PermitRootLogin' "$f" && setline "$f" PermitRootLogin "PermitRootLogin no"
     done
+    # sshd -t refuses to run without its privilege-separation directory (it is made when sshd starts).
+    [ -d /run/sshd ] || act "create /run/sshd (needed by sshd -t)" mkdir -p -m 0755 /run/sshd
     if act "validate sshd configuration" sshd -t; then
         act "restart $SSH_UNIT" systemctl restart "$SSH_UNIT" --fallback service "$SSH_UNIT" restart
     else
