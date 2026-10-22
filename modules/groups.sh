@@ -1,4 +1,6 @@
 # shellcheck shell=bash
+# SC2154: GroupMembers comes from config.env, sourced before this file.
+# shellcheck disable=SC2154
 # Group membership from GroupMembers, plus README-mentioned groups that do not exist.
 
 mod_groups() {

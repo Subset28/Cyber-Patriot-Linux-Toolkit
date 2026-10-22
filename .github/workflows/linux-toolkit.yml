@@ -1,0 +1,47 @@
+name: linux-toolkit
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Run test suite
+        run: bash tests/run-tests.sh
+
+  dry-run-and-apply:
+    # Runs on a throwaway Ubuntu VM: fake accounts, a fixture README, then a real apply of three modules.
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a fake competition image
+        run: |
+          sudo useradd -m -s /bin/bash benjamin
+          sudo useradd -m -s /bin/bash attacker
+          sudo apt-get install -y nmap
+          mkdir -p "$HOME/Desktop"
+          cp tests/fixtures/README.txt "$HOME/Desktop/README.txt"
+      - name: Dry run every module (nothing changes)
+        run: |
+          sudo bash cp_harden.sh --no-pause < /dev/null > dryrun.txt 2>&1 || true
+          cat dryrun.txt
+          ! grep -q "\[FAILED\]" dryrun.txt
+      - name: Apply users, auth and packages
+        run: |
+          sudo bash cp_harden.sh --apply --only users,auth,packages --no-pause < /dev/null > apply.txt 2>&1 || true
+          cat apply.txt
+      - name: Check the results on the machine
+        run: |
+          # The unauthorized account must be gone, the authorized admin must be in sudo, and aging must be set on it.
+          ! id attacker >/dev/null 2>&1
+          id -nG benjamin | grep -qw sudo
+          sudo chage -l benjamin | grep -q 'Maximum number of days between password change.*: 90'
+          grep -q "nmap" apply.txt
+          ! grep -q "\[FAILED\]" apply.txt

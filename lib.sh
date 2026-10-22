@@ -1,5 +1,7 @@
 #!/bin/bash
 # Shared helpers for cp_harden.sh and modules/. Sourced, not run directly.
+# SC2034: these globals are read by modules and cp_harden.sh, which shellcheck cannot see.
+# shellcheck disable=SC2034
 
 : "${APPLY:=0}"
 : "${REPORT_DIR:=/root/cp-reports}"
@@ -24,6 +26,25 @@ inlist() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
 ask() { local a; read -r -p "$1" a; echo "$a"; }
 
+# ask_yn QUESTION -> returns 0 for y, 1 for n. Enter alone does not answer.
+ask_yn() {
+    local a
+    while :; do
+        # End of input counts as no answer, so a closed stdin cannot loop forever.
+        read -r -p "$1 (y/n): " a || return 1
+        case "$a" in
+            y|Y|yes) return 0 ;;
+            n|N|no)  return 1 ;;
+            *) echo "    Type y or n. Enter alone does not continue." ;;
+        esac
+    done
+}
+
+# Prints the newest run folder under REPORT_DIR, if there is one.
+latest_run() {
+    ls -1dt "$REPORT_DIR"/run-* 2>/dev/null | head -n 1
+}
+
 # pick_numbers QUESTION ITEM...  -> prints the chosen items, one per line.
 # Enter alone does not answer: type numbers (commas or spaces), or 'none'.
 pick_numbers() {
@@ -33,7 +54,8 @@ pick_numbers() {
     # The list and messages go to stderr, so only the chosen items reach stdout for the caller.
     for ((i = 0; i < ${#items[@]}; i++)); do printf '    %3d) %s\n' "$((i + 1))" "${items[i]}" >&2; done
     while :; do
-        read -r -p "$question: " answer
+        # End of input (closed stdin) ends the pick with no answer, instead of looping forever.
+        read -r -p "$question: " answer || { echo "    No input. Nothing was picked." >&2; return 1; }
         answer=${answer//,/ }
         if [ -z "$answer" ]; then
             echo "    Type numbers from 1 to ${#items[@]}, or type none. Enter alone does not continue." >&2
@@ -57,11 +79,11 @@ pick_numbers() {
 # Output goes to commands.log so the console stays readable.
 act() {
     local desc=$1; shift
-    local -a p=() f=()
+    local -a p=() fb=()
     local split=0 a
     for a in "$@"; do
         if [ "$a" = "--fallback" ] && [ "$split" -eq 0 ]; then split=1; continue; fi
-        if [ "$split" -eq 0 ]; then p+=("$a"); else f+=("$a"); fi
+        if [ "$split" -eq 0 ]; then p+=("$a"); else fb+=("$a"); fi
     done
     if [ "$APPLY" -ne 1 ]; then
         echo "    [dry-run] $desc"
@@ -75,7 +97,7 @@ act() {
         return 0
     fi
     log WARN "primary failed: ${p[*]}"
-    if [ "${#f[@]}" -gt 0 ] && "${f[@]}" >>"$RUN_DIR/commands.log" 2>&1; then
+    if [ "${#fb[@]}" -gt 0 ] && "${fb[@]}" >>"$RUN_DIR/commands.log" 2>&1; then
         echo "    [ok via fallback] $desc"
         log FALLBACK "$desc"
         record FALLBACK "$desc"

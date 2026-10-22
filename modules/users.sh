@@ -1,14 +1,13 @@
 # shellcheck shell=bash
-# Users, admin group membership, new admins, and root lock.
+# SC2154: NewUsers and DeleteUnauthorizedHomes come from config.env, sourced before this file.
+# shellcheck disable=SC2154
+# Users, admin group membership, missing authorized accounts, new admins, and root lock.
 
 mod_users() {
     say "Users and admins"
     local done_users=" "
     local admins_l=" ${ADMINS,,} ${NEW_ADMINS,,} "
     local users_l=" ${USERS,,} ${NewUsers[*],,} "
-    for u in $ADMINS $USERS; do
-        id "$u" >/dev/null 2>&1 || { echo "    MISSING authorized account: $u"; log WARN "missing account $u"; }
-    done
     getent passwd | while IFS=: read -r name _ uid _ _ _ shell; do
         [ "$name" = root ] && continue
         [ "$uid" -ge 1000 ] || [ "$uid" -eq 0 ] || continue
@@ -36,6 +35,29 @@ mod_users() {
             fi
         fi
     done
+
+    say "Missing authorized accounts (you pick which to create)"
+    local -a missing=() picked=()
+    local u
+    mapfile -t missing < <(for u in $ADMINS $USERS; do id "$u" >/dev/null 2>&1 || echo "$u"; done | awk '!seen[$0]++')
+    if [ "${#missing[@]}" -eq 0 ]; then
+        echo "    every authorized account exists"
+    elif [ "$APPLY" -ne 1 ]; then
+        printf '    missing: %s\n' "${missing[@]}"
+        echo "    [dry-run] in apply mode you pick which accounts to create"
+    else
+        mapfile -t picked < <(pick_numbers "Create which of these? (numbers separated by commas, or type none)" "${missing[@]}")
+        for u in "${picked[@]}"; do
+            [ -n "$u" ] || continue
+            act "create user $u" useradd -m -s /bin/bash "$u" || continue
+            set_generated_password "$u"
+            act "force password change at next login for $u" chage -d 0 "$u"
+            if inlist "$admins_l" "${u,,}"; then
+                act "add $u to $ADMIN_GROUP" usermod -aG "$ADMIN_GROUP" "$u" --fallback adduser "$u" "$ADMIN_GROUP"
+            fi
+            done_users+=" $u "
+        done
+    fi
 
     say "New standard accounts"
     for u in "${NewUsers[@]}"; do
