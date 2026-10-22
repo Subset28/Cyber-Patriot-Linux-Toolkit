@@ -6,7 +6,16 @@
 mod_sudoers() {
     say "Sudo: rules that skip the password (you pick which to require a password for)"
     local -a labels=() picked=()
+    local mode
     local f ln text label tmp
+    # Sudo files must be mode 0440. visudo reports other modes, and the file is not trusted as it should be.
+    for f in /etc/sudoers /etc/sudoers.d/*; do
+        [ -f "$f" ] || continue
+        mode=$(stat -c %a "$f" 2>/dev/null)
+        if [ -n "$mode" ] && [ "$mode" != 440 ]; then
+            act "set mode 0440 on $f (it was $mode; visudo reports bad permissions)" chmod 0440 "$f"
+        fi
+    done
     for f in /etc/sudoers /etc/sudoers.d/*; do
         [ -f "$f" ] || continue
         while IFS=: read -r ln text; do
