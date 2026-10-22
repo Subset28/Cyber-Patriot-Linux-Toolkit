@@ -106,7 +106,8 @@ jobs:
 
           echo "== removepaths (the Downloads folder)"
           sudo bash cp_harden.sh --only removepaths --no-pause < /dev/null > rp-dry.txt 2>&1
-          n=$(numbered_index rp-dry.txt cp-junk-folder); test -n "$n"
+          n=$(plain_index rp-dry.txt cp-junk-folder); test -n "$n"
+          grep -qE "^[0-9]+$" <<< "$n"
           echo "$n" | sudo bash cp_harden.sh --apply --only removepaths --no-pause > removepaths.txt 2>&1
           cat removepaths.txt
           test ! -e "$HOME/Downloads/cp-junk-folder"
